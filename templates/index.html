@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>台股模擬交易系統</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Font Awesome 6 -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+  <!-- ApexCharts -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.0/dist/apexcharts.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main:    #0d1117;
+      --bg-card:    #161b22;
+      --bg-input:   #21262d;
+      --border:     #30363d;
+      --text-muted: #8b949e;
+      --green:      #3fb950;
+      --red:        #f85149;
+      --yellow:     #d29922;
+      --blue:       #58a6ff;
+      --purple:     #bc8cff;
+    }
+    body { background: var(--bg-main); font-size: 0.875rem; }
+
+    /* ── Navbar ── */
+    .navbar { background: var(--bg-card) !important; border-bottom: 1px solid var(--border); }
+    .navbar-brand { font-weight: 700; letter-spacing: .04em; color: var(--blue) !important; }
+
+    /* ── Cards ── */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+    .card-header {
+      background: transparent; border-bottom: 1px solid var(--border);
+      font-size: .78rem; font-weight: 600; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-muted); padding: .55rem .85rem;
+    }
+
+    /* ── KPI chips ── */
+    .kpi-label { font-size: .72rem; color: var(--text-muted); margin-bottom: 1px; }
+    .kpi-value { font-size: 1.05rem; font-weight: 600; }
+    .kpi-sm    { font-size: .78rem; font-weight: 600; }
+    .text-green { color: var(--green) !important; }
+    .text-red   { color: var(--red)   !important; }
+    .text-blue  { color: var(--blue)  !important; }
+    .text-yellow{ color: var(--yellow)!important; }
+
+    /* ── Scrollable tables ── */
+    .table-scroll { max-height: 220px; overflow-y: auto; }
+    .table-scroll::-webkit-scrollbar { width: 4px; }
+    .table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .table { color: #c9d1d9; font-size: .78rem; margin-bottom: 0; }
+    .table th { color: var(--text-muted); font-weight: 500; border-color: var(--border); position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
+    .table td { border-color: #21262d; vertical-align: middle; }
+    .table tbody tr:hover td { background: rgba(88,166,255,.06); }
+
+    /* ── Signal badge ── */
+    .signal-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 11px; border-radius: 6px; font-size: .78rem; font-weight: 600;
+    }
+    .signal-buy  { background: rgba(63,185,80,.15);  border: 1px solid rgba(63,185,80,.4);  color: var(--green); }
+    .signal-sell { background: rgba(248,81,73,.15);  border: 1px solid rgba(248,81,73,.4);  color: var(--red);   }
+    .signal-hold { background: rgba(139,148,158,.1); border: 1px solid var(--border);        color: var(--text-muted); }
+
+    /* ── Order form ── */
+    .form-control, .form-select {
+      background: var(--bg-input); border-color: var(--border); color: #c9d1d9; font-size: .82rem;
+    }
+    .form-control:focus, .form-select:focus {
+      background: var(--bg-input); border-color: var(--blue); color: #e6edf3; box-shadow: 0 0 0 2px rgba(88,166,255,.2);
+    }
+    .btn-buy  { background: #1a7f37; border-color: #2ea043; color: #fff; font-weight: 600; }
+    .btn-buy:hover  { background: #2ea043; color: #fff; }
+    .btn-sell { background: #8b1a1a; border-color: #da3633; color: #fff; font-weight: 600; }
+    .btn-sell:hover { background: #da3633; color: #fff; }
+    .btn-execute { width: 100%; padding: .5rem; border-radius: 6px; font-weight: 700; letter-spacing: .04em; }
+
+    /* ── Progress bar ── */
+    .progress { background: #21262d; height: 6px; border-radius: 4px; }
+
+    /* ── Search ── */
+    #searchInput { max-width: 130px; background: var(--bg-input); border-color: var(--border); color: #c9d1d9; }
+    #searchInput::placeholder { color: var(--text-muted); }
+
+    /* ── Chart container ── */
+    #chartWrapper { min-height: 340px; }
+
+    /* ── Fee preview ── */
+    #feePreview { font-size: .75rem; color: var(--text-muted); }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
+
+    /* ── Spinner overlay ── */
+    #chartSpinner { position: absolute; inset: 0; background: rgba(13,17,23,.7); z-index: 5; border-radius: 8px; }
+
+    /* ── Action toggle ── */
+    .action-toggle .btn { border-radius: 5px; font-size: .8rem; font-weight: 600; }
+    .action-toggle .btn-check:checked + .btn-success { background: #1a7f37; border-color: #2ea043; }
+    .action-toggle .btn-check:checked + .btn-danger  { background: #8b1a1a; border-color: #da3633; }
+
+    /* ── Holdings tag ── */
+    .holding-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 8px; font-size: .75rem; cursor: pointer;
+    }
+    .holding-tag:hover { border-color: var(--blue); color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<!-- ══ Navbar ═══════════════════════════════════════════════════════════════ -->
+<nav class="navbar navbar-expand-lg px-3 py-2">
+  <span class="navbar-brand">
+    <i class="fa fa-chart-candlestick me-2"></i>台股模擬交易
+  </span>
+  <!-- 模式標籤 -->
+  <span id="modeBadge" class="badge ms-1" style="font-size:.72rem;background:rgba(210,153,34,.2);color:#d29922;border:1px solid rgba(210,153,34,.4)">
+    🟡 模擬模式
+  </span>
+  <!-- 搜尋 -->
+  <div class="d-flex align-items-center gap-2 ms-auto">
+    <div class="input-group input-group-sm" style="max-width:260px">
+      <input id="searchInput" type="text" class="form-control" placeholder="輸入代號，如 0050" />
+      <select id="periodSelect" class="form-select" style="max-width:90px">
+        <option value="3mo">3 個月</option>
+        <option value="6mo" selected>6 個月</option>
+        <option value="1y">1 年</option>
+        <option value="2y">2 年</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="App.searchStock()">
+        <i class="fa fa-search"></i>
+      </button>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="App.resetAccount()" title="重置帳戶">
+      <i class="fa fa-rotate-left"></i>
+    </button>
+    <!-- Webhook 設定按鈕 -->
+    <button class="btn btn-outline-secondary btn-sm position-relative"
+            data-bs-toggle="modal" data-bs-target="#webhookModal" title="Webhook 設定">
+      <i class="fa fa-bell"></i>
+      <span id="webhookDot" class="position-absolute top-0 start-100 translate-middle p-1 rounded-circle d-none"
+            style="background:#3fb950;width:8px;height:8px;"></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ══ Webhook 設定 Modal ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="webhookModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="fa fa-bell me-2 text-blue"></i>Webhook 設定（n8n 自動通知）</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- 說明 -->
+        <div class="alert mb-3 py-2" style="background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);font-size:.8rem;color:#c9d1d9">
+          <i class="fa fa-circle-info me-1 text-blue"></i>
+          每筆模擬交易成功後，系統會自動 <code>POST</code> 到此 URL。
+          在 n8n 中建立 <b>Webhook Trigger</b> 節點，複製其 URL 貼入下方，即可接收通知並串接 LINE / Email。
+        </div>
+
+        <!-- URL 設定 -->
+        <div class="mb-3">
+          <label class="form-label fw-bold" style="font-size:.82rem">n8n Webhook URL</label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:var(--bg-input);border-color:var(--border);color:var(--text-muted)">
+              <i class="fa fa-link"></i>
+            </span>
+            <input id="whUrl" type="url" class="form-control"
+                   placeholder="https://your-n8n.com/webhook/xxxxxxxx" />
+          </div>
+          <div class="form-text" style="color:var(--text-muted)">
+            範例：<code>http://localhost:5678/webhook/my-stock-hook</code>
+          </div>
+        </div>
+
+        <!-- HMAC 密鑰 -->
+        <div class="mb-3">
+          <label class="form-label fw-bold" style="font-size:.82rem">
+            簽章密鑰（選填）
+            <span class="badge" style="background:rgba(188,140,255,.2);color:#bc8cff;font-weight:400">HMAC-SHA256</span>
+          </label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:var(--bg-input);border-color:var(--border);color:var(--text-muted)">
+              <i class="fa fa-key"></i>
+            </span>
+            <input id="whSecret" type="password" class="form-control" placeholder="留空則不加簽章" />
+            <button class="btn btn-outline-secondary" type="button" onclick="App.toggleSecret()">
+              <i id="eyeIcon" class="fa fa-eye"></i>
+            </button>
+          </div>
+          <div class="form-text" style="color:var(--text-muted)">
+            n8n 可在 Header 驗證 <code>X-Signature-256</code>，防止偽造請求。
+          </div>
+        </div>
+
+        <!-- 選項 -->
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="whEnabled" checked />
+              <label class="form-check-label" for="whEnabled" style="font-size:.82rem">啟用 Webhook</label>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="whAsync" checked />
+              <label class="form-check-label" for="whAsync" style="font-size:.82rem">非同步發送（不阻塞下單）</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payload 預覽 -->
+        <div class="mb-3">
+          <label class="form-label fw-bold" style="font-size:.82rem">Payload 欄位說明（n8n 可直接引用）</label>
+          <div class="p-2 rounded" style="background:var(--bg-input);font-size:.72rem;color:#8b949e;font-family:monospace;line-height:1.7">
+            <span class="text-yellow">notification.line_text</span>    → LINE 訊息內文（含格式）<br>
+            <span class="text-yellow">notification.email_subject</span> → Email 主旨<br>
+            <span class="text-yellow">notification.email_html</span>    → Email HTML 內容<br>
+            <span class="text-yellow">trade.action</span>               → "BUY" / "SELL"（可用 Switch 分流）<br>
+            <span class="text-yellow">trade.ticker</span>               → 股票代號<br>
+            <span class="text-yellow">trade.net_amount</span>           → 實際付出 / 收入<br>
+            <span class="text-yellow">trade.realized_pnl</span>         → 已實現損益（賣出才有）<br>
+            <span class="text-yellow">account.cash</span>               → 交易後現金餘額
+          </div>
+        </div>
+
+        <!-- 最近 Webhook 發送紀錄 -->
+        <div>
+          <label class="form-label fw-bold d-flex justify-content-between" style="font-size:.82rem">
+            <span>最近發送紀錄</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="App.loadWebhookLogs()">
+              <i class="fa fa-refresh"></i> 刷新
+            </button>
+          </label>
+          <div style="max-height:160px;overflow-y:auto">
+            <table class="table table-borderless" style="font-size:.72rem">
+              <thead>
+                <tr>
+                  <th style="color:var(--text-muted)">時間</th>
+                  <th style="color:var(--text-muted)">事件</th>
+                  <th style="color:var(--text-muted)">代號</th>
+                  <th style="color:var(--text-muted)">狀態</th>
+                  <th style="color:var(--text-muted)">HTTP</th>
+                  <th style="color:var(--text-muted)">重試</th>
+                </tr>
+              </thead>
+              <tbody id="webhookLogBody">
+                <tr><td colspan="6" class="text-center text-muted">尚無紀錄</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button class="btn btn-outline-secondary" onclick="App.testWebhook()" id="testWebhookBtn">
+          <i class="fa fa-paper-plane me-1"></i>發送測試
+        </button>
+        <button class="btn btn-primary" onclick="App.saveWebhookConfig()">
+          <i class="fa fa-save me-1"></i>儲存設定
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Main Layout ══════════════════════════════════════════════════════════ -->
+<div class="container-fluid p-2 p-md-3">
+  <div class="row g-2 g-md-3">
+
+    <!-- ── 左欄：帳戶資訊 ─────────────────────────────────────────── -->
+    <div class="col-12 col-lg-2 d-flex flex-column gap-2">
+
+      <!-- 帳戶總覽 -->
+      <div class="card">
+        <div class="card-header"><i class="fa fa-wallet me-1"></i>帳戶總覽</div>
+        <div class="card-body p-2 d-flex flex-column gap-2">
+          <div>
+            <div class="kpi-label">可用現金</div>
+            <div class="kpi-value text-blue" id="accCash">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">持倉市值</div>
+            <div class="kpi-sm" id="accHoldingsVal">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">總資產</div>
+            <div class="kpi-sm" id="accTotalAssets">—</div>
+          </div>
+          <hr class="my-1" style="border-color:var(--border)">
+          <div>
+            <div class="kpi-label">已實現損益</div>
+            <div class="kpi-sm" id="accRealizedPnl">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">未實現損益</div>
+            <div class="kpi-sm" id="accUnrealizedPnl">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">總損益</div>
+            <div class="kpi-value" id="accTotalPnl">—</div>
+          </div>
+          <div>
+            <div class="kpi-label d-flex justify-content-between">
+              <span>目標進度</span>
+              <span id="accTargetPct" class="text-yellow">—</span>
+            </div>
+            <div class="progress mt-1">
+              <div id="accTargetBar" class="progress-bar bg-warning" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 持倉明細 -->
+      <div class="card flex-grow-1">
+        <div class="card-header"><i class="fa fa-layer-group me-1"></i>持倉明細</div>
+        <div class="table-scroll">
+          <table class="table table-borderless">
+            <thead>
+              <tr>
+                <th>代號</th><th class="text-end">股數</th><th class="text-end">均成本</th>
+              </tr>
+            </thead>
+            <tbody id="holdingsBody">
+              <tr><td colspan="3" class="text-center text-muted py-3">尚無持倉</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── 中欄：圖表 + 訊號 ─────────────────────────────────────── -->
+    <div class="col-12 col-lg-7 d-flex flex-column gap-2">
+
+      <!-- K 線圖 -->
+      <div class="card position-relative">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>
+            <i class="fa fa-chart-bar me-1"></i>
+            <span id="chartTitle">0050 — 元大台灣50</span>
+          </span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge" style="background:rgba(249,197,44,.2);color:#f9c52c">
+              <span style="display:inline-block;width:8px;height:2px;background:#f9c52c;vertical-align:middle;margin-right:3px"></span>
+              MA<span id="shortWinLabel">5</span>
+            </span>
+            <span class="badge" style="background:rgba(88,166,255,.2);color:#58a6ff">
+              <span style="display:inline-block;width:8px;height:2px;background:#58a6ff;vertical-align:middle;margin-right:3px"></span>
+              MA<span id="longWinLabel">20</span>
+            </span>
+            <!-- 均線參數調整 -->
+            <div class="input-group input-group-sm" style="max-width:150px">
+              <span class="input-group-text py-0 px-2" style="background:var(--bg-input);border-color:var(--border);color:var(--text-muted);font-size:.72rem">MA</span>
+              <input id="shortWin" type="number" class="form-control py-0 px-1 text-center" value="5" min="2" max="60" style="max-width:42px" />
+              <span class="input-group-text py-0 px-1" style="background:var(--bg-input);border-color:var(--border);color:var(--text-muted)">/</span>
+              <input id="longWin" type="number" class="form-control py-0 px-1 text-center" value="20" min="5" max="200" style="max-width:42px" />
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="App.applyMA()">套用</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-2" id="chartWrapper">
+          <div id="chartSpinner" class="d-flex align-items-center justify-content-center">
+            <div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+          </div>
+          <div id="mainChart"></div>
+        </div>
+      </div>
+
+      <!-- 策略訊號 -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fa fa-bolt me-1"></i>均線交叉訊號</span>
+          <span id="latestSignalBadge" class="signal-hold">
+            <i class="fa fa-minus"></i> 持倉觀望
+          </span>
+        </div>
+        <div class="table-scroll" style="max-height:160px">
+          <table class="table table-borderless">
+            <thead>
+              <tr>
+                <th>日期</th><th>訊號</th><th class="text-end">收盤</th>
+                <th class="text-end">MA短</th><th class="text-end">MA長</th>
+                <th>原因</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="signalBody">
+              <tr><td colspan="7" class="text-center text-muted py-2">請先載入股票資料</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── 右欄：下單面板 ──────────────────────────────────────────── -->
+    <div class="col-12 col-lg-3 d-flex flex-column gap-2">
+
+      <!-- 即時報價條 -->
+      <div class="card">
+        <div class="card-body p-2 d-flex gap-3 flex-wrap">
+          <div>
+            <div class="kpi-label">代號</div>
+            <div class="kpi-sm" id="rtTicker">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">最新價</div>
+            <div class="kpi-value" id="rtClose">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">漲跌幅</div>
+            <div class="kpi-sm" id="rtChange">—</div>
+          </div>
+          <div>
+            <div class="kpi-label">成交量(張)</div>
+            <div class="kpi-sm" id="rtVolume">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下單表單 -->
+      <div class="card flex-grow-1">
+        <div class="card-header"><i class="fa fa-paper-plane me-1"></i>委託下單</div>
+        <div class="card-body p-2 d-flex flex-column gap-2">
+
+          <!-- 買賣切換 -->
+          <div class="action-toggle d-flex gap-1">
+            <input type="radio" class="btn-check" name="action" id="btnBuy" value="BUY" checked />
+            <label class="btn btn-success w-50" for="btnBuy"><i class="fa fa-arrow-up me-1"></i>買進</label>
+            <input type="radio" class="btn-check" name="action" id="btnSell" value="SELL" />
+            <label class="btn btn-danger w-50" for="btnSell"><i class="fa fa-arrow-down me-1"></i>賣出</label>
+          </div>
+
+          <!-- 代號 -->
+          <div>
+            <label class="form-label mb-1 text-muted" style="font-size:.72rem">股票代號</label>
+            <input id="orderSymbol" type="text" class="form-control" value="0050" placeholder="0050" />
+          </div>
+
+          <!-- 股數 -->
+          <div>
+            <label class="form-label mb-1 text-muted" style="font-size:.72rem">委託股數</label>
+            <div class="input-group">
+              <input id="orderQty" type="number" class="form-control" value="1000" min="1" step="1000" />
+              <span class="input-group-text" style="background:var(--bg-input);border-color:var(--border);color:var(--text-muted);font-size:.72rem">股</span>
+            </div>
+            <div class="d-flex gap-1 mt-1">
+              <button class="btn btn-outline-secondary btn-sm px-2 py-0" onclick="App.setQtyLot(1)">1張</button>
+              <button class="btn btn-outline-secondary btn-sm px-2 py-0" onclick="App.setQtyLot(5)">5張</button>
+              <button class="btn btn-outline-secondary btn-sm px-2 py-0" onclick="App.setQtyLot(10)">10張</button>
+            </div>
+          </div>
+
+          <!-- 價格 -->
+          <div>
+            <label class="form-label mb-1 text-muted" style="font-size:.72rem">委託價格</label>
+            <input id="orderPrice" type="number" class="form-control" value="0" min="0" step="0.01" />
+          </div>
+
+          <!-- 委託類型 -->
+          <div class="row g-1">
+            <div class="col-6">
+              <label class="form-label mb-1 text-muted" style="font-size:.72rem">委託類型</label>
+              <select id="orderType" class="form-select">
+                <option value="ROD">ROD（當日）</option>
+                <option value="IOC">IOC（立即）</option>
+                <option value="FOK">FOK（全成）</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1 text-muted" style="font-size:.72rem">價格類型</label>
+              <select id="priceType" class="form-select">
+                <option value="LMT">限價</option>
+                <option value="MKT">市價</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 費用預覽 -->
+          <div id="feePreview" class="p-2 rounded" style="background:var(--bg-input);min-height:48px">
+            <div class="d-flex justify-content-between"><span>成交金額</span><span id="fpAmount">—</span></div>
+            <div class="d-flex justify-content-between"><span>手續費</span><span id="fpCommission">—</span></div>
+            <div class="d-flex justify-content-between"><span>證交稅</span><span id="fpStt">—</span></div>
+            <div class="d-flex justify-content-between fw-bold" style="color:#c9d1d9;font-size:.78rem">
+              <span>實際付出 / 收入</span><span id="fpNet">—</span>
+            </div>
+          </div>
+
+          <!-- 執行按鈕 -->
+          <button id="executeBtn" class="btn btn-execute btn-buy" onclick="App.executeOrder()">
+            <i class="fa fa-check me-1"></i>確認下單
+          </button>
+
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /row -->
+
+  <!-- ── 底部：交易紀錄 ─────────────────────────────────────────────────── -->
+  <div class="row mt-2 mt-md-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fa fa-list me-1"></i>交易紀錄</span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="App.loadHistory()">
+            <i class="fa fa-refresh me-1"></i>重整
+          </button>
+        </div>
+        <div class="table-scroll" style="max-height:240px">
+          <table class="table table-borderless">
+            <thead>
+              <tr>
+                <th>時間</th><th>代號</th><th>買賣</th><th class="text-end">股數</th>
+                <th class="text-end">成交價</th><th class="text-end">成交金額</th>
+                <th class="text-end">手續費</th><th class="text-end">稅</th>
+                <th class="text-end">實付/收</th><th class="text-end">損益</th>
+                <th class="text-end">餘額</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td colspan="11" class="text-center text-muted py-3">尚無交易紀錄</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container-fluid -->
+
+<!-- ══ Toast 通知 ════════════════════════════════════════════════════════════ -->
+<div class="toast-container">
+  <div id="toast" class="toast align-items-center border-0" role="alert" aria-live="assertive">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg">訊息</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+//  App — 台股模擬交易前端邏輯
+// ══════════════════════════════════════════════════════════════════════
+const App = (() => {
+  let chart = null;
+  let currentTicker = '0050';
+  let currentPeriod = '6mo';
+  let latestOrder   = null;      // 策略產出的最新 Order
+  let latestClose   = 0;         // 圖表最後一根收盤價
+  let holdingPrices = {};        // {ticker: close} for summary API
+
+  // ── 工具 ─────────────────────────────────────────────────────────
+
+  const fmt  = n  => n == null ? '—' : Number(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const fmtM = n  => n == null ? '—' : `NT$${fmt(n)}`;
+  const fmtP = n  => n == null ? '—' : `${n >= 0 ? '+' : ''}${Number(n).toFixed(2)}%`;
+  const colorPnl = (el, val) => {
+    if (val == null) return;
+    el.className = el.className.replace(/text-(green|red|muted)/g, '');
+    el.classList.add(val > 0 ? 'text-green' : val < 0 ? 'text-red' : 'text-muted');
+  };
+
+  function showToast(msg, type = 'success') {
+    const el  = document.getElementById('toast');
+    const txt = document.getElementById('toastMsg');
+    el.className = `toast align-items-center text-bg-${type} border-0`;
+    txt.textContent = msg;
+    bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
+  }
+
+  function setSpinner(show) {
+    document.getElementById('chartSpinner').style.display = show ? 'flex' : 'none';
+  }
+
+  // ── 搜尋 / 載入股票 ───────────────────────────────────────────────
+
+  async function searchStock() {
+    const t = document.getElementById('searchInput').value.trim().toUpperCase() || '0050';
+    const p = document.getElementById('periodSelect').value;
+    currentTicker = t;
+    currentPeriod = p;
+    await loadStock(t, p);
+    await loadRealtime(t);
+    document.getElementById('orderSymbol').value = t;
+    updateFeePreview();
+  }
+
+  async function loadStock(ticker, period) {
+    setSpinner(true);
+    const sw = document.getElementById('shortWin').value;
+    const lw = document.getElementById('longWin').value;
+    try {
+      const r = await fetch(`/api/history?ticker=${ticker}&period=${period}&short=${sw}&long=${lw}`);
+      const d = await r.json();
+      if (d.error) { showToast(d.error, 'danger'); return; }
+
+      renderChart(d);
+      renderSignals(d.signals, d.latest_order, d.short_window, d.long_window);
+      if (d.chart_data && d.chart_data.length > 0) {
+        latestClose = d.chart_data[d.chart_data.length - 1].close;
+        holdingPrices[ticker] = latestClose;
+        document.getElementById('orderPrice').value = latestClose ?? 0;
+        updateFeePreview();
+      }
+    } catch(e) {
+      showToast('載入失敗：' + e.message, 'danger');
+    } finally {
+      setSpinner(false);
+    }
+  }
+
+  function applyMA() {
+    loadStock(currentTicker, currentPeriod);
+    const sw = document.getElementById('shortWin').value;
+    const lw = document.getElementById('longWin').value;
+    document.getElementById('shortWinLabel').textContent = sw;
+    document.getElementById('longWinLabel').textContent  = lw;
+  }
+
+  // ── ApexCharts 渲染 ────────────────────────────────────────────────
+
+  function renderChart(data) {
+    const rows    = data.chart_data || [];
+    const signals = data.signals    || [];
+
+    const ohlc = rows.map(r => ({ x: new Date(r.date), y: [r.open, r.high, r.low, r.close] }));
+    const ma5  = rows.filter(r => r.ma_short != null).map(r => ({ x: new Date(r.date), y: r.ma_short }));
+    const ma20 = rows.filter(r => r.ma_long  != null).map(r => ({ x: new Date(r.date), y: r.ma_long  }));
+
+    // 交叉訊號標記
+    const annotations = signals.map(s => ({
+      x: new Date(s.date).getTime(),
+      strokeDashArray: 0,
+      borderColor: s.action === 'BUY' ? '#3fb950' : '#f85149',
+      label: {
+        borderColor:     s.action === 'BUY' ? '#3fb950' : '#f85149',
+        style: { color: '#fff', background: s.action === 'BUY' ? '#1a7f37' : '#8b1a1a', fontSize: '11px' },
+        text: s.action === 'BUY' ? '▲買' : '▼賣',
+        orientation: 'horizontal',
+      },
+    }));
+
+    const opts = {
+      chart: {
+        type: 'line',
+        height: 320,
+        background: 'transparent',
+        toolbar: { show: true, tools: { download: false, selection: true, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true } },
+        animations: { enabled: false },
+        foreColor: '#8b949e',
+      },
+      theme: { mode: 'dark' },
+      series: [
+        { name: '價格', type: 'candlestick', data: ohlc },
+        { name: `MA${data.short_window}`,   type: 'line', data: ma5  },
+        { name: `MA${data.long_window}`,    type: 'line', data: ma20 },
+      ],
+      xaxis: { type: 'datetime', labels: { style: { fontSize: '11px' } }, axisBorder: { color: '#30363d' }, axisTicks: { color: '#30363d' } },
+      yaxis: { tooltip: { enabled: true }, labels: { style: { fontSize: '11px' }, formatter: v => v?.toFixed(2) } },
+      grid: { borderColor: '#21262d', strokeDashArray: 3 },
+      stroke: { width: [1, 1.5, 1.5], curve: 'straight' },
+      colors: ['transparent', '#f9c52c', '#58a6ff'],
+      plotOptions: {
+        candlestick: {
+          colors: { upward: '#3fb950', downward: '#f85149' },
+          wick: { useFillColor: true },
+        },
+      },
+      annotations: { xaxis: annotations },
+      legend: { show: true, labels: { colors: '#8b949e' } },
+      tooltip: {
+        theme: 'dark',
+        x: { format: 'yyyy-MM-dd' },
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          if (seriesIndex === 0) {
+            const d = w.globals.initialSeries[0].data[dataPointIndex];
+            if (!d) return '';
+            const [o, h, l, c] = d.y;
+            const color = c >= o ? '#3fb950' : '#f85149';
+            return `<div class="p-2" style="font-size:12px;line-height:1.7">
+              <b>${new Date(d.x).toLocaleDateString('zh-TW')}</b><br>
+              開 ${o?.toFixed(2)} 高 <span style="color:#3fb950">${h?.toFixed(2)}</span><br>
+              低 <span style="color:#f85149">${l?.toFixed(2)}</span> 收 <span style="color:${color}">${c?.toFixed(2)}</span>
+            </div>`;
+          }
+          return '';
+        },
+      },
+    };
+
+    if (chart) { chart.destroy(); }
+    chart = new ApexCharts(document.getElementById('mainChart'), opts);
+    chart.render();
+
+    document.getElementById('chartTitle').textContent =
+      `${data.ticker}  MA${data.short_window} × MA${data.long_window}`;
+  }
+
+  // ── 訊號列表 ─────────────────────────────────────────────────────
+
+  function renderSignals(signals, order, sw, lw) {
+    latestOrder = order;
+
+    const tbody = document.getElementById('signalBody');
+    const badge = document.getElementById('latestSignalBadge');
+
+    if (!signals || signals.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-2">此期間無交叉訊號</td></tr>';
+      badge.className = 'signal-hold';
+      badge.innerHTML = '<i class="fa fa-minus"></i> 無訊號';
+      return;
+    }
+
+    // 最新訊號徽章
+    const latest = signals[signals.length - 1];
+    if (latest.action === 'BUY') {
+      badge.className = 'signal-badge signal-buy';
+      badge.innerHTML = `<i class="fa fa-arrow-up"></i> 黃金交叉 買進`;
+    } else {
+      badge.className = 'signal-badge signal-sell';
+      badge.innerHTML = `<i class="fa fa-arrow-down"></i> 死亡交叉 賣出`;
+    }
+
+    tbody.innerHTML = [...signals].reverse().slice(0, 30).map(s => {
+      const isBuy = s.action === 'BUY';
+      const icon  = isBuy
+        ? '<span class="text-green"><i class="fa fa-arrow-up me-1"></i>BUY</span>'
+        : '<span class="text-red"><i class="fa fa-arrow-down me-1"></i>SELL</span>';
+      const execBtn = `<button class="btn btn-sm py-0 px-2 ${isBuy ? 'btn-buy' : 'btn-sell'}"
+        onclick="App.fillFromSignal('${s.action}','${s.close}')">執行</button>`;
+      return `<tr>
+        <td>${s.date}</td>
+        <td>${icon}</td>
+        <td class="text-end">${s.close?.toFixed(2)}</td>
+        <td class="text-end text-yellow">${s.short_ma?.toFixed(2)}</td>
+        <td class="text-end text-blue">${s.long_ma?.toFixed(2)}</td>
+        <td class="text-muted">${s.reason}</td>
+        <td>${execBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── 即時報價 ─────────────────────────────────────────────────────
+
+  async function loadRealtime(ticker) {
+    try {
+      const r = await fetch(`/api/realtime?tickers=${ticker}`);
+      const d = await r.json();
+      if (!d || !d[0]) return;
+      const q = d[0];
+      document.getElementById('rtTicker').textContent = q.ticker || ticker;
+      document.getElementById('rtClose').textContent  = fmt(q.close);
+      const chgEl = document.getElementById('rtChange');
+      chgEl.textContent = fmtP(q.change_pct);
+      chgEl.className   = `kpi-sm ${(q.change_pct||0) >= 0 ? 'text-green' : 'text-red'}`;
+      document.getElementById('rtVolume').textContent = fmt(q.volume);
+      // 同步到下單價格
+      if (q.close) {
+        document.getElementById('orderPrice').value = q.close;
+        holdingPrices[ticker] = q.close;
+        updateFeePreview();
+      }
+    } catch(e) { /* 靜默失敗 */ }
+  }
+
+  // ── 帳戶摘要 ─────────────────────────────────────────────────────
+
+  async function refreshAccount() {
+    const pricesParam = Object.entries(holdingPrices).map(([k,v]) => `${k}:${v}`).join(',');
+    try {
+      const r = await fetch(`/api/account/summary${pricesParam ? '?prices=' + pricesParam : ''}`);
+      const d = await r.json();
+      if (d.error) return;
+
+      document.getElementById('accCash').textContent         = fmtM(d.cash);
+      document.getElementById('accHoldingsVal').textContent  = fmtM(d.holdings_value);
+      document.getElementById('accTotalAssets').textContent  = fmtM(d.total_assets);
+
+      const rpEl = document.getElementById('accRealizedPnl');
+      rpEl.textContent = (d.realized_pnl >= 0 ? '+' : '') + fmtM(d.realized_pnl);
+      colorPnl(rpEl, d.realized_pnl);
+
+      const upEl = document.getElementById('accUnrealizedPnl');
+      upEl.textContent = (d.unrealized_pnl >= 0 ? '+' : '') + fmtM(d.unrealized_pnl);
+      colorPnl(upEl, d.unrealized_pnl);
+
+      const tpEl = document.getElementById('accTotalPnl');
+      tpEl.textContent = (d.total_pnl >= 0 ? '+' : '') + fmtM(d.total_pnl) + ` (${fmtP(d.pnl_pct)})`;
+      colorPnl(tpEl, d.total_pnl);
+
+      document.getElementById('accTargetPct').textContent = `${(d.target_progress || 0).toFixed(2)}%`;
+      document.getElementById('accTargetBar').style.width = `${Math.min(d.target_progress || 0, 100)}%`;
+
+      // 持倉明細
+      const hbody = document.getElementById('holdingsBody');
+      if (!d.holdings || d.holdings.length === 0) {
+        hbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">尚無持倉</td></tr>';
+      } else {
+        hbody.innerHTML = d.holdings.map(h => `
+          <tr onclick="App.fillTicker('${h.ticker}')" style="cursor:pointer" title="點擊以此代號查詢">
+            <td class="text-blue">${h.ticker}</td>
+            <td class="text-end">${fmt(h.shares)}</td>
+            <td class="text-end">${h.avg_cost?.toFixed(2)}</td>
+          </tr>`).join('');
+      }
+    } catch(e) { /* 靜默失敗 */ }
+  }
+
+  // ── 交易紀錄 ─────────────────────────────────────────────────────
+
+  async function loadHistory() {
+    try {
+      const r = await fetch('/api/account/history?limit=80');
+      const rows = await r.json();
+      const tbody = document.getElementById('historyBody');
+      if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-3">尚無交易紀錄</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r => {
+        const isBuy = r.trade_type === 'BUY';
+        const pnl   = r.realized_pnl;
+        const pnlCls= pnl > 0 ? 'text-green' : pnl < 0 ? 'text-red' : 'text-muted';
+        return `<tr>
+          <td class="text-muted">${(r.trade_time||'').substring(0,16)}</td>
+          <td class="text-blue">${r.ticker}</td>
+          <td class="${isBuy ? 'text-green' : 'text-red'} fw-bold">${r.trade_type}</td>
+          <td class="text-end">${fmt(r.shares)}</td>
+          <td class="text-end">${r.price?.toFixed(2)}</td>
+          <td class="text-end">${fmt(r.trade_amount)}</td>
+          <td class="text-end text-muted">${fmt(r.commission)}</td>
+          <td class="text-end text-muted">${fmt(r.stt)}</td>
+          <td class="text-end">${fmt(r.net_amount)}</td>
+          <td class="text-end ${pnlCls}">${pnl ? (pnl >= 0 ? '+' : '') + fmt(pnl) : '—'}</td>
+          <td class="text-end">${fmt(r.balance_after)}</td>
+        </tr>`;
+      }).join('');
+    } catch(e) { showToast('載入紀錄失敗', 'warning'); }
+  }
+
+  // ── 下單 ─────────────────────────────────────────────────────────
+
+  async function executeOrder() {
+    const action   = document.querySelector('input[name="action"]:checked').value;
+    const symbol   = document.getElementById('orderSymbol').value.trim().toUpperCase();
+    const price    = parseFloat(document.getElementById('orderPrice').value);
+    const quantity = parseInt(document.getElementById('orderQty').value);
+    const orderType= document.getElementById('orderType').value;
+    const priceType= document.getElementById('priceType').value;
+
+    if (!symbol) { showToast('請填入股票代號', 'warning'); return; }
+    if (price <= 0)   { showToast('請填入有效委託價格', 'warning'); return; }
+    if (quantity <= 0){ showToast('請填入有效委託股數', 'warning'); return; }
+
+    const btn = document.getElementById('executeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>送出中…';
+
+    try {
+      const r = await fetch('/api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Action: action, Symbol: symbol, Price: price, Quantity: quantity, OrderType: orderType, PriceType: priceType }),
+      });
+      const d = await r.json();
+      if (d.error) {
+        showToast(d.error, 'danger');
+      } else {
+        const t = d.trade;
+        showToast(`${action} ${symbol} ${quantity}股 @${price} 成功！餘額 NT$${fmt(t.balance_after)}`, 'success');
+        await Promise.all([refreshAccount(), loadHistory()]);
+        holdingPrices[symbol] = price;
+      }
+    } catch(e) {
+      showToast('下單失敗：' + e.message, 'danger');
+    } finally {
+      btn.disabled = false;
+      const isBuy = document.querySelector('input[name="action"]:checked').value === 'BUY';
+      btn.className = `btn btn-execute ${isBuy ? 'btn-buy' : 'btn-sell'}`;
+      btn.innerHTML = '<i class="fa fa-check me-1"></i>確認下單';
+    }
+  }
+
+  // ── 費用預覽 ─────────────────────────────────────────────────────
+
+  async function updateFeePreview() {
+    const action   = document.querySelector('input[name="action"]:checked')?.value || 'BUY';
+    const symbol   = document.getElementById('orderSymbol').value.trim().toUpperCase() || '0050';
+    const price    = parseFloat(document.getElementById('orderPrice').value) || 0;
+    const quantity = parseInt(document.getElementById('orderQty').value) || 0;
+    if (price <= 0 || quantity <= 0) {
+      ['fpAmount','fpCommission','fpStt','fpNet'].forEach(id => document.getElementById(id).textContent = '—');
+      return;
+    }
+    try {
+      const r = await fetch('/api/order/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Action: action, Symbol: symbol, Price: price, Quantity: quantity }),
+      });
+      const d = await r.json();
+      if (d.error) return;
+      document.getElementById('fpAmount').textContent     = fmt(d.trade_amount);
+      document.getElementById('fpCommission').textContent = fmt(d.commission);
+      document.getElementById('fpStt').textContent        = fmt(d.stt);
+      document.getElementById('fpNet').textContent        = fmt(d.net_amount);
+    } catch(e) {}
+  }
+
+  // ── 輔助 ─────────────────────────────────────────────────────────
+
+  function fillFromSignal(action, price) {
+    document.querySelector(`input[name="action"][value="${action}"]`).checked = true;
+    document.getElementById('orderPrice').value = parseFloat(price).toFixed(2);
+    updateExecuteBtn();
+    updateFeePreview();
+    document.getElementById('orderSymbol').value = currentTicker;
+    showToast(`已套用策略訊號：${action} @${parseFloat(price).toFixed(2)}`, 'info');
+  }
+
+  function fillTicker(ticker) {
+    document.getElementById('searchInput').value = ticker;
+    searchStock();
+  }
+
+  function setQtyLot(n) {
+    document.getElementById('orderQty').value = n * 1000;
+    updateFeePreview();
+  }
+
+  function updateExecuteBtn() {
+    const isBuy = document.querySelector('input[name="action"]:checked').value === 'BUY';
+    const btn = document.getElementById('executeBtn');
+    btn.className = `btn btn-execute ${isBuy ? 'btn-buy' : 'btn-sell'}`;
+    btn.innerHTML = `<i class="fa fa-check me-1"></i>${isBuy ? '確認買進' : '確認賣出'}`;
+  }
+
+  async function resetAccount() {
+    if (!confirm('確定要重置虛擬帳戶嗎？所有交易記錄將清除，無法恢復。')) return;
+    const r = await fetch('/api/account/reset', { method: 'POST' });
+    const d = await r.json();
+    if (d.success) {
+      showToast('帳戶已重置，本金回復 NT$100,000', 'success');
+      await Promise.all([refreshAccount(), loadHistory()]);
+    } else {
+      showToast(d.error, 'danger');
+    }
+  }
+
+  // ── Webhook 設定 ──────────────────────────────────────────────────
+
+  async function loadWebhookConfig() {
+    try {
+      const r = await fetch('/api/webhook/config');
+      const d = await r.json();
+      document.getElementById('whUrl').value       = d.url     || '';
+      document.getElementById('whEnabled').checked = d.enabled ?? true;
+      document.getElementById('whAsync').checked   = d.async_send ?? true;
+      // 若已啟用且有 URL，亮起提示點
+      const dot = document.getElementById('webhookDot');
+      if (d.enabled && d.url) dot.classList.remove('d-none');
+      else dot.classList.add('d-none');
+    } catch(e) {}
+  }
+
+  async function saveWebhookConfig() {
+    const url     = document.getElementById('whUrl').value.trim();
+    const secret  = document.getElementById('whSecret').value.trim();
+    const enabled = document.getElementById('whEnabled').checked;
+    const async_s = document.getElementById('whAsync').checked;
+
+    const r = await fetch('/api/webhook/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, secret, enabled, async_send: async_s }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      showToast('Webhook 設定已儲存', 'success');
+      // 更新提示點
+      const dot = document.getElementById('webhookDot');
+      if (enabled && url) dot.classList.remove('d-none');
+      else dot.classList.add('d-none');
+    } else {
+      showToast(d.error || '儲存失敗', 'danger');
+    }
+  }
+
+  async function testWebhook() {
+    const btn = document.getElementById('testWebhookBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>發送中…';
+    try {
+      const r = await fetch('/api/webhook/test', { method: 'POST' });
+      const d = await r.json();
+      if (d.success) {
+        showToast('測試 Webhook 發送成功！請至 n8n 查看接收狀態。', 'success');
+      } else {
+        showToast('發送失敗：' + (d.error || 'HTTP 錯誤'), 'danger');
+      }
+      await loadWebhookLogs();
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-paper-plane me-1"></i>發送測試';
+    }
+  }
+
+  async function loadWebhookLogs() {
+    try {
+      const r    = await fetch('/api/webhook/logs?limit=20');
+      const logs = await r.json();
+      const tbody = document.getElementById('webhookLogBody');
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">尚無紀錄</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => {
+        const ok  = l.success;
+        const icon = ok ? '<i class="fa fa-check text-green"></i>' : '<i class="fa fa-times text-red"></i>';
+        const event = l.event === 'TEST' ? '<span class="text-muted">TEST</span>' :
+                      l.action === 'BUY'  ? '<span class="text-green">BUY</span>' :
+                      l.action === 'SELL' ? '<span class="text-red">SELL</span>' : l.event || '—';
+        return `<tr>
+          <td>${l.time || '—'}</td>
+          <td>${event}</td>
+          <td class="text-blue">${l.ticker || '—'}</td>
+          <td>${icon} ${ok ? '成功' : (l.error || '失敗').substring(0, 30)}</td>
+          <td>${l.status || '—'}</td>
+          <td>${l.attempt || 1}</td>
+        </tr>`;
+      }).join('');
+    } catch(e) {}
+  }
+
+  function toggleSecret() {
+    const inp  = document.getElementById('whSecret');
+    const icon = document.getElementById('eyeIcon');
+    if (inp.type === 'password') {
+      inp.type = 'text'; icon.className = 'fa fa-eye-slash';
+    } else {
+      inp.type = 'password'; icon.className = 'fa fa-eye';
+    }
+  }
+
+  // ── 事件綁定 ─────────────────────────────────────────────────────
+
+  function bindEvents() {
+    // 搜尋框 Enter
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') searchStock();
+    });
+    // 買賣切換 → 更新按鈕與費用
+    document.querySelectorAll('input[name="action"]').forEach(el => {
+      el.addEventListener('change', () => { updateExecuteBtn(); updateFeePreview(); });
+    });
+    // 股數 / 價格變動 → 即時費用預覽
+    ['orderQty','orderPrice','orderSymbol'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateFeePreview);
+    });
+  }
+
+  // ── 初始化 ────────────────────────────────────────────────────────
+
+  async function loadSystemStatus() {
+    try {
+      const r = await fetch('/api/system/status');
+      const d = await r.json();
+      const badge = document.getElementById('modeBadge');
+      if (!d.is_simulation) {
+        badge.textContent = '🔴 實戰模式';
+        badge.style.background = 'rgba(248,81,73,.2)';
+        badge.style.color       = '#f85149';
+        badge.style.borderColor = 'rgba(248,81,73,.4)';
+        // 實戰模式額外提醒
+        showToast('⚠ 目前為實戰模式，所有下單將連接真實券商 API！', 'warning');
+      } else {
+        badge.textContent = '🟡 模擬模式';
+      }
+    } catch(e) {}
+  }
+
+  async function init() {
+    bindEvents();
+    await loadSystemStatus();
+    await loadStock('0050', '6mo');
+    await loadRealtime('0050');
+    await refreshAccount();
+    await loadHistory();
+    await loadWebhookConfig();
+    // 每 60 秒自動刷新帳戶
+    setInterval(refreshAccount, 60_000);
+  }
+
+  // 公開介面
+  return {
+    searchStock, applyMA, executeOrder, loadHistory,
+    fillFromSignal, fillTicker, setQtyLot, resetAccount, updateFeePreview,
+    refreshAccount, loadWebhookConfig, saveWebhookConfig, testWebhook,
+    loadWebhookLogs, toggleSecret, loadSystemStatus,
+    init,
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', App.init);
+</script>
+</body>
+</html>
